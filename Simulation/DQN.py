@@ -16,7 +16,7 @@ import select
 # Define a transition tuple to store experience
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
-class xyzwawpositon:
+class camera_position:
   def __init__(self, posX, posY, posZ, posYaw, Flag):
     self.posX = posX
     self.posY = posY
