@@ -57,22 +57,21 @@ def start_aruco_pose():
     )
     return process
 
-
-
-
-class ReplayMemory(object):
+class MemoryDQN:
     def __init__(self, capacity):
-        self.memory = deque([], maxlen=capacity)
+        self.buffer = deque(maxlen=capacity)
 
-    def push(self, *args):
-        """Save a transition"""
-        self.memory.append(Transition(*args))
+    def add(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
 
     def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+        return np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones)
 
-    def __len__(self):
-        return len(self.memory)
+    def size(self):
+        return len(self.buffer)
+
 
 
 class DQN(nn.Module):
