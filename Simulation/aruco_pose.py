@@ -285,6 +285,7 @@ class ArucoSingleTracker:
                 if verbose:
                     self.shared_array[-1] = 0
                     print(f"Nothing detected - fps = {self.fps_read:.0f} Flag = {self.shared_array[-1]}")
+                
 
             if show_video:
                 cv.imshow('frame', frame)

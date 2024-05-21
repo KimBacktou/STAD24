@@ -42,8 +42,8 @@ def camera_read_shm():
         print("Shared memory does not exist. Please ensure that it is created before running this script.")
     except Exception as e:
         print(f"Error while reading shared memory: {e}")
-    #existing_shared_mem.close()
-    #existing_shared_mem.unlink()
+    existing_shared_mem.close()
+    existing_shared_mem.unlink()
     
 
 def start_aruco_pose():
