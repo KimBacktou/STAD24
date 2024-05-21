@@ -282,8 +282,10 @@ class ArucoSingleTracker:
                             cv.putText(frame, str_position, (0, 40), font, 1, font_color, 2, cv.LINE_AA)
 
             else:
+                
+                self.shared_array[-1] = 0
+                
                 if verbose:
-                    self.shared_array[-1] = 0
                     print(f"Nothing detected - fps = {self.fps_read:.0f} Flag = {self.shared_array[-1]}")
 
             if show_video:
@@ -310,7 +312,10 @@ class ArucoSingleTracker:
 
 if __name__ == "__main__":
     id_to_find = 0  # Valid marker to find
-    marker_size = 18  # cm
+    marker_size = 50  # cm
+    showVideo = True
+    simulationVideo = False
+    verboseval = False
     # Shared memory setup
 
     aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)  # Choose dictionary for valid markers
@@ -325,8 +330,8 @@ if __name__ == "__main__":
     aruco_tracker = ArucoSingleTracker(
         id_to_find=id_to_find,
         marker_size=marker_size,
-        show_video=True,        # Enable/disable show video
-        simulation=False         # Simulation or other camera
+        show_video=showVideo,        # Enable/disable show video
+        simulation=simulationVideo         # Simulation or other camera
     )
 
-    aruco_tracker.track(verbose=True,simulation=False)
+    aruco_tracker.track(verbose=verboseval,simulation=simulationVideo)
