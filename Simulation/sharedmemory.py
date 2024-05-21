@@ -5,7 +5,7 @@ import multiprocessing.shared_memory as shared_memory
 import numpy as np
 import sys
 import select
-
+yaw = 0.0
 
 def read_shared_memory():
     try:
@@ -19,6 +19,7 @@ def read_shared_memory():
             if (shared_array[-1] > 0) or (shared_array[-1] < 0):
                 # Print the values stored in shared memory
                 print(f"Shared Memory Values - X: {shared_array[0]:.1f}, Y: {shared_array[1]:.1f}, Z: {shared_array[2]:.1f}, Yaw: {shared_array[3]:.1f}, Flag: {shared_array[-1]}")
+                time.sleep(0.1)
                 # Check for user input or termination signal
                 if sys.stdin in select.select([sys.stdin], [], [], 0)[0] or (shared_array[-1] == -1).any():
                     if shared_array[-1] == -1:
@@ -37,6 +38,7 @@ def read_shared_memory():
         print(f"Error while reading shared memory: {e}")
     existing_shared_mem.close()
     existing_shared_mem.unlink()
+
     
 
 def start_aruco_pose():
@@ -52,11 +54,14 @@ def start_aruco_pose():
 
 
 def main():
-    print("Starting aruco_pose")
-    process = start_aruco_pose()
-    time.sleep(2)
+    
+    #process = start_aruco_pose()
+    #time.sleep(2)
     
     try:
+        print("Starting aruco_pose")
+        process = start_aruco_pose()
+        time.sleep(2)
         read_shared_memory()
     except KeyboardInterrupt:
         print("Stopping aruco_pose")

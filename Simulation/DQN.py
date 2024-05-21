@@ -1,41 +1,78 @@
+import asyncio
+from mavsdk import System
+from mavsdk.action import ActionError
+from mavsdk.offboard import OffboardError, VelocityBodyYawspeed
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import random
 from collections import namedtuple, deque
-import numpy as np
-import subprocess
 import time
+import subprocess
 import os
 import multiprocessing.shared_memory as shared_memory
-import sys
-import select
-import mavsdk
+
 
 # Define a transition tuple to store experience
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
 class Environment:
-    
+
     def __init__(self):
         self.shared_mem_name = '/aruco_shared_memory'
-        self.mavsdk_client = mavsdk.System()
+        self.mavsdk_client = System()
         self.state = None
         self.done = False
+
+    async def connect_to_drone(self):
+        await self.mavsdk_client.connect(system_address="udp://:14540")
+        print("Waiting for drone to connect...")
+        async for state in self.mavsdk_client.core.connection_state():
+            if state.is_connected:
+                print("-- Connected to drone!")
+                break
+
+        print("Waiting for drone to have a global position estimate...")
+        async for health in self.mavsdk_client.telemetry.health():
+            print(f"Drone health: {health}")
+            if health.is_global_position_ok and health.is_home_position_ok:
+                print("-- Global position estimate OK")
+                break
+
+        print("-- Arming")
+        try:
+            await self.mavsdk_client.action.arm()
+            print("-- Armed")
+        except ActionError as e:
+            print(f"Arming failed with error: {e}")
+            return
+
+        print("-- Setting initial setpoint")
+        await self.mavsdk_client.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+        print("-- Starting offboard")
+        try:
+            await self.mavsdk_client.offboard.start()
+            print("-- Offboard started")
+        except OffboardError as error:
+            print(f"Starting offboard mode failed with error code: {error._result.result}")
+            print("-- Disarming")
+            await self.mavsdk_client.action.disarm()
+            return
 
     def marker_position(self):
         try:
             # Open the existing shared memory
-            existing_shared_mem = shared_memory.SharedMemory(name=self.shared_mem_name)       
+            existing_shared_mem = shared_memory.SharedMemory(name=self.shared_mem_name)
             posX, posY, posZ, posYaw, Flag = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
 
-            if (Flag == -1):
+            if Flag == -1:
                 existing_shared_mem.close()
                 existing_shared_mem.unlink()
                 self.done = True
 
-            existing_shared_mem.close()
+            #existing_shared_mem.close()
             return np.array([posX, posY, posZ, posYaw]), self.done
 
         except FileNotFoundError:
@@ -43,8 +80,8 @@ class Environment:
         except Exception as e:
             print(f"Error while reading shared memory: {e}")
 
-        existing_shared_mem.close()
-        existing_shared_mem.unlink()
+        #existing_shared_mem.close()
+        #existing_shared_mem.unlink()
         return None, True
 
     def step(self, action):
@@ -58,9 +95,8 @@ class Environment:
 
     def reset(self):
         self.done = False
-        self.mavsdk_client.action.arm()
-        self.mavsdk_client.action.takeoff()
-        time.sleep(5)  # Wait for the drone to take off
+        # Connect and arm the drone
+        asyncio.run(self.connect_to_drone())
         state, _ = self.marker_position()
         self.state = state
         return self.state
@@ -93,6 +129,7 @@ class Environment:
         reward = -distance
         return reward
 
+
 def start_aruco_pose():
     # Start aruco_pose.py as a subprocess with unbuffered output
     process = subprocess.Popen(
@@ -102,7 +139,6 @@ def start_aruco_pose():
         env=dict(os.environ, PYTHONUNBUFFERED="1")  # Unbuffered environment
     )
     return process
-
 
 
 class MemoryDQN:
@@ -120,33 +156,33 @@ class MemoryDQN:
     def size(self):
         return len(self.buffer)
 
+
 class DQN(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 128) #input layer with 128 neurons
-        self.fc2 = nn.Linear(128, 128)        #hidden layer 
-        self.fc3 = nn.Linear(128, action_dim)  #outputlayer 
+        self.fc1 = nn.Linear(state_dim, 128)  # Input layer with 128 neurons
+        self.fc2 = nn.Linear(128, 128)  # Hidden layer
+        self.fc3 = nn.Linear(128, action_dim)  # Output layer
 
-    def forward(self, x):   #forward pass of the network
+    def forward(self, x):  # Forward pass of the network
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
         return self.fc3(x)
 
 
-
 class Agent:
     def __init__(
-            self, 
-            state_dim, 
-            action_dim, 
-            batch_size=128, 
-            gamma=0.99, 
-            epsilon_start=1.0, 
-            epsilon_end=0.01, 
-            epsilon_decay=0.995, 
+            self,
+            state_dim,
+            action_dim,
+            batch_size=128,
+            gamma=0.99,
+            epsilon_start=1.0,
+            epsilon_end=0.01,
+            epsilon_decay=0.995,
             target_update=10,
             learning_rate=0.001  # Added learning rate parameter
-        ):
+    ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.policy_net = DQN(state_dim, action_dim).to(self.device)
         self.target_net = DQN(state_dim, action_dim).to(self.device)
@@ -177,7 +213,7 @@ class Agent:
     def optimize_model(self):
         if len(self.memory) < self.batch_size:
             return
-        
+
         transitions = self.memory.sample(self.batch_size)
         batch = Transition(*zip(*transitions))
 
@@ -193,7 +229,7 @@ class Agent:
         next_state_values = torch.zeros(self.batch_size, device=self.device)
         with torch.no_grad():
             next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0].detach()
-        
+
         expected_state_action_values = (next_state_values * self.gamma) + reward_batch
 
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
@@ -206,9 +242,10 @@ class Agent:
         if self.steps_done % self.target_update == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
 
+
 def train(env, agent, num_episodes=1000):
     for i_episode in range(num_episodes):
-        state = env.reset()
+        state = env.reset()  # Initialize state
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(agent.device)
         for t in range(1000):  # Run for a maximum of 1000 steps
             action = agent.select_action(state)
@@ -224,10 +261,56 @@ def train(env, agent, num_episodes=1000):
             if done:
                 break
 
+
+def select_action(state, policy_net, epsilon):
+    if random.random() > epsilon:
+        with torch.no_grad():
+            return policy_net(state).max(1)[1].view(1, 1).item()
+    else:
+        return random.randrange(action_dim)
+
+
 def main():
-    print("Starting aruco_pose")
-    process = start_aruco_pose()
-    time.sleep(2)
+
+    async def run():
+        """ Does Offboard control using velocity body coordinates. """
+
+        drone = System()
+        await drone.connect(system_address="udp://:14540")
+
+        print("Waiting for drone to connect...")
+        async for state in drone.core.connection_state():
+            if state.is_connected:
+                print(f"-- Connected to drone!")
+                break
+
+        print("Waiting for drone to have a global position estimate...")
+        async for health in drone.telemetry.health():
+            if health.is_global_position_ok and health.is_home_position_ok:
+                print("-- Global position estimate OK")
+                break
+
+        print("-- Arming")
+        await drone.action.arm()
+
+        print("-- Setting initial setpoint")
+        await drone.offboard.set_velocity_body(
+            VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+
+        print("-- Starting offboard")
+        try:
+            await drone.offboard.start()
+        except OffboardError as error:
+            print(f"Starting offboard mode failed with error code: \
+                {error._result.result}")
+            print("-- Disarming")
+            await drone.action.disarm()
+            return
+
+        print("-- Turn clock-wise and climb")
+        await drone.offboard.set_velocity_body(
+            VelocityBodyYawspeed(0.0, 0.0, -1.0, 60.0))
+        await asyncio.sleep(5)
 
     # Example usage
     env = Environment()
@@ -239,5 +322,87 @@ def main():
     process.terminate()
     env.close()
 
+
 if __name__ == "__main__":
-    main()
+    # Device configuration
+    print("Starting aruco_pose")
+    process = start_aruco_pose()
+    time.sleep(2)
+
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Initialize environment
+    env = Environment()
+    state_dim = 4  # Assuming the state consists of x, y, z, yaw
+    action_dim = 8  # Assuming 8 possible actions (based on your action_to_velocity method)
+
+    # Initialize DQN and target DQN
+    policy_net = DQN(state_dim, action_dim).to(device)
+    target_net = DQN(state_dim, action_dim).to(device)
+    target_net.load_state_dict(policy_net.state_dict())
+    target_net.eval()
+
+    # Optimizer
+    optimizer = optim.Adam(policy_net.parameters())
+
+    # Replay buffer
+    memory = MemoryDQN(capacity=10000)
+
+    # Hyperparameters
+    batch_size = 64
+    gamma = 0.99  # Discount factor
+    epsilon = 0.1  # Exploration factor
+    target_update = 10  # How often to update the target network
+    num_episodes = 500  # Number of episodes to train
+
+    # Function to select action
+    def select_action(state, policy_net, epsilon):
+        if random.random() > epsilon:
+            with torch.no_grad():
+                return policy_net(state).max(1)[1].view(1, 1).item()
+        else:
+            return random.randrange(action_dim)
+
+    # Main training loop
+    for episode in range(num_episodes):
+        state = env.reset()
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device)
+
+        for t in range(1000):  # Limit the number of steps per episode
+            action = select_action(state, policy_net, epsilon)
+            next_state, reward, done, _ = env.step(action)
+            next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0).to(device)
+            reward = torch.tensor([reward], dtype=torch.float32).to(device)
+            done = torch.tensor([done], dtype=torch.float32).to(device)
+
+            memory.add(state, action, reward, next_state, done)
+
+            state = next_state
+
+            if memory.size() > batch_size:
+                transitions = memory.sample(batch_size)
+                batch_state, batch_action, batch_reward, batch_next_state, batch_done = transitions
+
+                batch_state = torch.tensor(batch_state, dtype=torch.float32).to(device)
+                batch_action = torch.tensor(batch_action).to(device)
+                batch_reward = torch.tensor(batch_reward).to(device)
+                batch_next_state = torch.tensor(batch_next_state, dtype=torch.float32).to(device)
+                batch_done = torch.tensor(batch_done).to(device)
+
+                state_action_values = policy_net(batch_state).gather(1, batch_action.unsqueeze(1)).squeeze(1)
+                next_state_values = target_net(batch_next_state).max(1)[0].detach()
+                expected_state_action_values = (next_state_values * gamma * (1 - batch_done)) + batch_reward
+
+                loss = F.mse_loss(state_action_values, expected_state_action_values)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            if done:
+                break
+
+        if episode % target_update == 0:
+            target_net.load_state_dict(policy_net.state_dict())
+
+    env.close()

@@ -321,7 +321,7 @@ if __name__ == "__main__":
     aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)  # Choose dictionary for valid markers
     parameters = aruco.DetectorParameters()
 
-    calib_data_path = "/home/STAD/Downloads/STAD-main/Simulation/MultiMatrix.npz"
+    calib_data_path = "/home/andreas/STAD-main/STAD24/Simulation/MultiMatrix.npz"
     calib_data = np.load(calib_data_path)
 
     camera_matrix = calib_data["camMatrix"]
