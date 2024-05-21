@@ -1,7 +1,3 @@
-import asyncio
-from mavsdk import System
-from mavsdk.action import ActionError
-from mavsdk.offboard import OffboardError, VelocityBodyYawspeed
 import numpy as np
 import torch
 import torch.nn as nn
@@ -22,44 +18,8 @@ class Environment:
 
     def __init__(self):
         self.shared_mem_name = '/aruco_shared_memory'
-        self.mavsdk_client = System()
         self.state = None
         self.done = False
-
-    async def connect_to_drone(self):
-        await self.mavsdk_client.connect(system_address="udp://:14540")
-        print("Waiting for drone to connect...")
-        async for state in self.mavsdk_client.core.connection_state():
-            if state.is_connected:
-                print("-- Connected to drone!")
-                break
-
-        print("Waiting for drone to have a global position estimate...")
-        async for health in self.mavsdk_client.telemetry.health():
-            print(f"Drone health: {health}")
-            if health.is_global_position_ok and health.is_home_position_ok:
-                print("-- Global position estimate OK")
-                break
-
-        print("-- Arming")
-        try:
-            await self.mavsdk_client.action.arm()
-            print("-- Armed")
-        except ActionError as e:
-            print(f"Arming failed with error: {e}")
-            return
-
-        print("-- Setting initial setpoint")
-        await self.mavsdk_client.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
-        print("-- Starting offboard")
-        try:
-            await self.mavsdk_client.offboard.start()
-            print("-- Offboard started")
-        except OffboardError as error:
-            print(f"Starting offboard mode failed with error code: {error._result.result}")
-            print("-- Disarming")
-            await self.mavsdk_client.action.disarm()
-            return
 
     def marker_position(self):
         try:
@@ -80,10 +40,11 @@ class Environment:
         except Exception as e:
             print(f"Error while reading shared memory: {e}")
 
-        #existing_shared_mem.close()
-        #existing_shared_mem.unlink()
+        existing_shared_mem.close()
+        existing_shared_mem.unlink()
         return None, True
 
+    #####    ACTIONSPACE ACTIONS TO PASS TO MAVSDK
     def step(self, action):
         velocity = self.action_to_velocity(action)
         self.mavsdk_client.action.set_velocity_body(velocity[0], velocity[1], velocity[2], velocity[3])
@@ -96,8 +57,6 @@ class Environment:
     def reset(self):
         self.done = False
         # Connect and arm the drone
-        asyncio.run(self.connect_to_drone())
-        state, _ = self.marker_position()
         self.state = state
         return self.state
 
@@ -270,61 +229,10 @@ def select_action(state, policy_net, epsilon):
         return random.randrange(action_dim)
 
 
-def main():
-
-    async def run():
-        """ Does Offboard control using velocity body coordinates. """
-
-        drone = System()
-        await drone.connect(system_address="udp://:14540")
-
-        print("Waiting for drone to connect...")
-        async for state in drone.core.connection_state():
-            if state.is_connected:
-                print(f"-- Connected to drone!")
-                break
-
-        print("Waiting for drone to have a global position estimate...")
-        async for health in drone.telemetry.health():
-            if health.is_global_position_ok and health.is_home_position_ok:
-                print("-- Global position estimate OK")
-                break
-
-        print("-- Arming")
-        await drone.action.arm()
-
-        print("-- Setting initial setpoint")
-        await drone.offboard.set_velocity_body(
-            VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
-
-        print("-- Starting offboard")
-        try:
-            await drone.offboard.start()
-        except OffboardError as error:
-            print(f"Starting offboard mode failed with error code: \
-                {error._result.result}")
-            print("-- Disarming")
-            await drone.action.disarm()
-            return
-
-        print("-- Turn clock-wise and climb")
-        await drone.offboard.set_velocity_body(
-            VelocityBodyYawspeed(0.0, 0.0, -1.0, 60.0))
-        await asyncio.sleep(5)
-
-    # Example usage
-    env = Environment()
-    n_inputs = 4  # posX, posY, posZ, posYaw
-    n_outputs = 8  # 8 possible actions
-    agent = Agent(n_inputs, n_outputs, learning_rate=0.001)  # Specify learning rate here
-    train(env, agent)
-
-    process.terminate()
-    env.close()
 
 
 if __name__ == "__main__":
-    # Device configuration
+    # Star aruco some time before any thing else, needs time to start
     print("Starting aruco_pose")
     process = start_aruco_pose()
     time.sleep(2)
@@ -336,7 +244,7 @@ if __name__ == "__main__":
     env = Environment()
     state_dim = 4  # Assuming the state consists of x, y, z, yaw
     action_dim = 8  # Assuming 8 possible actions (based on your action_to_velocity method)
-
+    agent = Agent(state_dim , action_dim, learning_rate=0.001)  # Specify learning rate here
     # Initialize DQN and target DQN
     policy_net = DQN(state_dim, action_dim).to(device)
     target_net = DQN(state_dim, action_dim).to(device)
@@ -406,3 +314,4 @@ if __name__ == "__main__":
             target_net.load_state_dict(policy_net.state_dict())
 
     env.close()
+    process.terminate()
