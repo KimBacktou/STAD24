@@ -43,27 +43,79 @@ class Environment:
     
     def __init__(self):
         self.shared_mem_name = '/aruco_shared_memory'
-    def marker_position():
+        self.mavsdk_client = mavsdk.System()
+        self.state = None
+        self.done = False
+
+    def marker_position(self):
         try:
             # Open the existing shared memory
-            existing_shared_mem = shared_memory.SharedMemory(name='/aruco_shared_memory')       
-
-            #shared_array = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
+            existing_shared_mem = shared_memory.SharedMemory(name=self.shared_mem_name)       
             posX, posY, posZ, posYaw, Flag = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
-                    #close fd and unlink if flag is set to -1, this indicates that the arucopose progam shuting down
+
             if (Flag == -1):
                 existing_shared_mem.close()
-                existing_shared_mem.unlink()     
+                existing_shared_mem.unlink()
+                self.done = True
 
-            return posX,posY,posZ,posYaw,Flag
-            #print(f"test X = {posX:.0f} y = {posY:.0f} z = {posZ:.0f} yaw = {posYaw:.5f} falg = {Flag:.0f}")
+            existing_shared_mem.close()
+            return np.array([posX, posY, posZ, posYaw]), self.done
 
         except FileNotFoundError:
             print("Shared memory does not exist. Please ensure that it is created before running this script.")
         except Exception as e:
             print(f"Error while reading shared memory: {e}")
+
         existing_shared_mem.close()
         existing_shared_mem.unlink()
+        return None, True
+
+    def step(self, action):
+        velocity = self.action_to_velocity(action)
+        self.mavsdk_client.action.set_velocity_body(velocity[0], velocity[1], velocity[2], velocity[3])
+        time.sleep(1)  # Wait for the drone to move
+
+        next_state, done = self.marker_position()
+        reward = self.compute_reward(next_state)
+        return next_state, reward, done, {}
+
+    def reset(self):
+        self.done = False
+        self.mavsdk_client.action.arm()
+        self.mavsdk_client.action.takeoff()
+        time.sleep(5)  # Wait for the drone to take off
+        state, _ = self.marker_position()
+        self.state = state
+        return self.state
+
+    def render(self):
+        # Implement visualization if needed
+        pass
+
+    def close(self):
+        self.mavsdk_client.action.land()
+
+    def action_to_velocity(self, action):
+        # Define a mapping from action indices to velocity commands
+        velocities = [
+            (1, 0, 0, 0),  # Move forward
+            (-1, 0, 0, 0),  # Move backward
+            (0, 1, 0, 0),  # Move left
+            (0, -1, 0, 0),  # Move right
+            (0, 0, 1, 0),  # Move up
+            (0, 0, -1, 0),  # Move down
+            (0, 0, 0, 1),  # Rotate clockwise
+            (0, 0, 0, -1)  # Rotate counterclockwise
+        ]
+        return velocities[action]
+
+    def compute_reward(self, state):
+        # Example reward function: Negative distance to the target position (e.g., origin)
+        target_position = np.array([0, 0, 0, 0])  # Target position and orientation
+        distance = np.linalg.norm(state - target_position)
+        reward = -distance
+        return reward
+
 
 def start_aruco_pose():
     # Start aruco_pose.py as a subprocess with unbuffered output
