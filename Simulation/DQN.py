@@ -47,6 +47,7 @@ class Environment:
         self.state = None
         self.done = False
 
+    ##State space
     def marker_position(self):
         try:
             # Open the existing shared memory
