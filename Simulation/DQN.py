@@ -16,36 +16,34 @@ import select
 # Define a transition tuple to store experience
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
-def read_shared_memory():
+class xyzwawpositon:
+  def __init__(self, posX, posY, posZ, posYaw, Flag):
+    self.posX = posX
+    self.posY = posY
+    self.posZ = posZ
+    self.posYaw = posYaw
+    self.Flag = Flag
+
+
+def camera_read_shm():
     try:
         # Open the existing shared memory
-        existing_shared_mem = shared_memory.SharedMemory(name='/aruco_shared_memory')
-        
-        while True:
+        existing_shared_mem = shared_memory.SharedMemory(name='/aruco_shared_memory')       
 
-            # Access the shared memory as a numpy array
-            shared_array = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)            
-            if (shared_array[-1] > 0) or (shared_array[-1] < 0):
-                # Print the values stored in shared memory
-                print(f"Shared Memory Values - X: {shared_array[0]:.1f}, Y: {shared_array[1]:.1f}, Z: {shared_array[2]:.1f}, Yaw: {shared_array[3]:.1f}, Flag: {shared_array[-1]}")
-                # Check for user input or termination signal
-                if sys.stdin in select.select([sys.stdin], [], [], 0)[0] or (shared_array[-1] == -1).any():
-                    if shared_array[-1] == -1:
-                        print("Sender stops sending: Quitting")
-                    else:
-                        print("User input 'q' or termination signal received: Quitting")
-                    break
-            elif(shared_array[-1]==0):
-                print(f"Not target, Flag: {shared_array[-1]:.0f}")
-            else:
-                print("ERROR")
- 
+        shared_array = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf) 
+
+        posX = shared_array[0]            
+        posY = shared_array[1]
+        posZ = shared_array[2]
+        posYaw = shared_array[4]
+        Flag = shared_array[-1]
+
     except FileNotFoundError:
         print("Shared memory does not exist. Please ensure that it is created before running this script.")
     except Exception as e:
         print(f"Error while reading shared memory: {e}")
-    existing_shared_mem.close()
-    existing_shared_mem.unlink()
+    #existing_shared_mem.close()
+    #existing_shared_mem.unlink()
     
 
 def start_aruco_pose():
