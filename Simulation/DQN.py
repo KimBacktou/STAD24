@@ -25,18 +25,21 @@ class camera_position:
     self.Flag = Flag
 
 
-def camera_read_shm():
+def read_shared_memory():
     try:
         # Open the existing shared memory
         existing_shared_mem = shared_memory.SharedMemory(name='/aruco_shared_memory')       
 
-        shared_array = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf) 
+        #shared_array = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
+        posX, posY, posZ, posYaw,Flag = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
 
-        posX = shared_array[0]            
-        posY = shared_array[1]
-        posZ = shared_array[2]
-        posYaw = shared_array[4]
-        Flag = shared_array[-1]
+        #close fd and unlink if flag is set to -1, this indicates that the arucopose progam shuting down
+        if (Flag == -1):
+            existing_shared_mem.close()
+            existing_shared_mem.unlink()     
+
+        return posX,posY,posZ,posYaw,Flag
+        #print(f"test X = {posX:.0f} y = {posY:.0f} z = {posZ:.0f} yaw = {posYaw:.5f} falg = {Flag:.0f}")
 
     except FileNotFoundError:
         print("Shared memory does not exist. Please ensure that it is created before running this script.")
@@ -56,6 +59,7 @@ def start_aruco_pose():
         env=dict(os.environ, PYTHONUNBUFFERED="1")  # Unbuffered environment
     )
     return process
+
 
 class MemoryDQN:
     def __init__(self, capacity):
@@ -203,7 +207,10 @@ def main():
     time.sleep(2)
     
     try:
-        read_shared_memory()
+        while True:
+            posX, posY, posZ, posYaw, Flag = read_shared_memory()
+            time.sleep(0.1)
+            print(f"test X = {posX:.0f} y = {posY:.0f} z = {posZ:.0f} yaw = {posYaw:.0f} falg = {Flag:.0f}")
     except KeyboardInterrupt:
         print("Stopping aruco_pose")
         time.sleep(1)
@@ -231,6 +238,7 @@ if __name__ == "__main__":
     # In this example, let's say we have an environment with 4-dimensional observations and 2 actions
     n_inputs = 4
     n_outputs = 5
-    agent = Agent(n_inputs, n_outputs)
+    #agent = Agent(n_inputs, n_outputs)
+    main()
     # You need to provide your environment to the train function
     # train(env, agent)
