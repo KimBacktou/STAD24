@@ -226,7 +226,7 @@ def main():
         while True:
             posX, posY, posZ, posYaw, Flag = read_camera()
             time.sleep(0.1)
-            print(f"test X = {posX:.0f} y = {posY:.0f} z = {posZ:.0f} yaw = {posYaw:.0f} falg = {Flag:.0f}")
+            print(f"test X = {posX:.0f} Y = {posY:.0f} Z = {posZ:.0f} Yaw = {posYaw:.0f} Flag = {Flag:.0f}")
     except KeyboardInterrupt:
         print("Stopping aruco_pose")
         time.sleep(1)
