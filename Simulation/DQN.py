@@ -6,7 +6,7 @@ import random
 from collections import namedtuple, deque
 import numpy as np
 
-
+# LALALALALALALALA
 # Define a transition tuple to store experience
 #lelelelelellelelle
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
