@@ -79,23 +79,23 @@ class MemoryDQN:
 
 
 class DQN(nn.Module):
-    def __init__(self, n_inputs, n_outputs):
+    def __init__(self, state_dim, action_dim):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(n_inputs, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, n_outputs)
+        self.fc1 = nn.Linear(state_dim, 128) #input layer with 128 neurons
+        self.fc2 = nn.Linear(128, 128)        #hidden layer 
+        self.fc3 = nn.Linear(128, action_dim)  #outputlayer 
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+    def forward(self, x):   #forward pass of the network
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
         return self.fc3(x)
 
 
 class Agent:
     def __init__(
             self, 
-            n_inputs, 
-            n_outputs, 
+            state_dim, 
+            action_dim, 
             batch_size=128, 
             gamma=0.99, 
             epsilon_start=1.0, 
@@ -104,12 +104,12 @@ class Agent:
             target_update=10
         ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.policy_net = DQN(n_inputs, n_outputs).to(self.device)
-        self.target_net = DQN(n_inputs, n_outputs).to(self.device)
+        self.policy_net = DQN(state_dim, action_dim).to(self.device)
+        self.target_net = DQN(state_dim, action_dim).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
         self.optimizer = optim.Adam(self.policy_net.parameters())
-        self.memory = ReplayMemory(10000)
+        self.memory = MemoryDQN(10000)
         self.batch_size = batch_size
         self.gamma = gamma
         self.epsilon_start = epsilon_start
@@ -117,7 +117,7 @@ class Agent:
         self.epsilon_decay = epsilon_decay
         self.target_update = target_update
         self.steps_done = 0
-        self.n_outputs = n_outputs
+        self.n_outputs = action_dim
 
     def select_action(self, state):
         sample = random.random()
