@@ -262,7 +262,7 @@ def train(env, agent, num_episodes=1000):
             next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0).to(agent.device)
             if done:
                 next_state = None
-            agent.memory.push(state, action, next_state, reward)
+            agent.memory.add(state, action, reward, next_state, done)
             state = next_state
             agent.optimize_model()
             agent.update_target_model()
@@ -273,40 +273,16 @@ def main():
     print("Starting aruco_pose")
     process = start_aruco_pose()
     time.sleep(2)
-    
-    try:
-        while True:
-            posX, posY, posZ, posYaw, Flag = read_camera()
-            time.sleep(0.1)
-            print(f"test X = {posX:.0f} Y = {posY:.0f} Z = {posZ:.0f} Yaw = {posYaw:.0f} Flag = {Flag:.0f}")
-    except KeyboardInterrupt:
-        print("Stopping aruco_pose")
-        time.sleep(1)
-        shared_memory
-        process.terminate()
-        process.wait()
-        print("aruco_pose terminated")
-    except Exception as e:
-        print(f'An error occurred: {e}')
-        process.terminate()
-        process.wait()
-        print("aruco_pose terminated due to error")
 
+    # Example usage
+    env = Environment()
+    n_inputs = 4  # posX, posY, posZ, posYaw
+    n_outputs = 8  # 8 possible actions
+    agent = Agent(n_inputs, n_outputs)
+    train(env, agent)
+
+    process.terminate()
+    env.close()
 
 if __name__ == "__main__":
-    # Example usage:
-    # Create your environment and agent
-    # env = ...
-    # n_inputs = env.observation_space.shape[0]
-    # n_outputs = env.action_space.n
-    # agent = Agent(n_inputs, n_outputs)
-    # Train the agent
-    # train(env, agent)
-
-    # In this example, let's say we have an environment with 4-dimensional observations and 2 actions
-    n_inputs = 4
-    n_outputs = 5
-    #agent = Agent(n_inputs, n_outputs)
     main()
-    # You need to provide your environment to the train function
-    # train(env, agent)
