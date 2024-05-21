@@ -16,24 +16,15 @@ import select
 # Define a transition tuple to store experience
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
-class camera_position:
-  def __init__(self, posX, posY, posZ, posYaw, Flag):
-    self.posX = posX
-    self.posY = posY
-    self.posZ = posZ
-    self.posYaw = posYaw
-    self.Flag = Flag
 
-
-def read_shared_memory():
+def read_camera():
     try:
         # Open the existing shared memory
         existing_shared_mem = shared_memory.SharedMemory(name='/aruco_shared_memory')       
 
         #shared_array = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
-        posX, posY, posZ, posYaw,Flag = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
-
-        #close fd and unlink if flag is set to -1, this indicates that the arucopose progam shuting down
+        posX, posY, posZ, posYaw, Flag = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
+                #close fd and unlink if flag is set to -1, this indicates that the arucopose progam shuting down
         if (Flag == -1):
             existing_shared_mem.close()
             existing_shared_mem.unlink()     
@@ -47,7 +38,6 @@ def read_shared_memory():
         print(f"Error while reading shared memory: {e}")
     existing_shared_mem.close()
     existing_shared_mem.unlink()
-    
 
 def start_aruco_pose():
     # Start aruco_pose.py as a subprocess with unbuffered output
@@ -208,7 +198,7 @@ def main():
     
     try:
         while True:
-            posX, posY, posZ, posYaw, Flag = read_shared_memory()
+            posX, posY, posZ, posYaw, Flag = read_camera()
             time.sleep(0.1)
             print(f"test X = {posX:.0f} y = {posY:.0f} z = {posZ:.0f} yaw = {posYaw:.0f} falg = {Flag:.0f}")
     except KeyboardInterrupt:
