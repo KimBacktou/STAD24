@@ -8,6 +8,7 @@ import numpy as np
 
 
 # Define a transition tuple to store experience
+#lelelelelellelelle
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
 
