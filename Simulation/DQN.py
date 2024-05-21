@@ -12,6 +12,7 @@ import multiprocessing.shared_memory as shared_memory
 import numpy as np
 import sys
 import select
+import mavsdk
 
 # Define a transition tuple to store experience
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
