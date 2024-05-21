@@ -5,7 +5,7 @@ import multiprocessing.shared_memory as shared_memory
 import numpy as np
 import sys
 import select
-yaw = 0.0
+
 
 def read_shared_memory():
     try:
