@@ -16,28 +16,30 @@ import select
 # Define a transition tuple to store experience
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
+class Environment:
+    def __init__(self):
+        self.shared_mem_name = '/aruco_shared_memory'
+    def read_camera():
+        try:
+            # Open the existing shared memory
+            existing_shared_mem = shared_memory.SharedMemory(name='/aruco_shared_memory')       
 
-def read_camera():
-    try:
-        # Open the existing shared memory
-        existing_shared_mem = shared_memory.SharedMemory(name='/aruco_shared_memory')       
+            #shared_array = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
+            posX, posY, posZ, posYaw, Flag = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
+                    #close fd and unlink if flag is set to -1, this indicates that the arucopose progam shuting down
+            if (Flag == -1):
+                existing_shared_mem.close()
+                existing_shared_mem.unlink()     
 
-        #shared_array = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
-        posX, posY, posZ, posYaw, Flag = np.ndarray((5,), dtype=np.float64, buffer=existing_shared_mem.buf)
-                #close fd and unlink if flag is set to -1, this indicates that the arucopose progam shuting down
-        if (Flag == -1):
-            existing_shared_mem.close()
-            existing_shared_mem.unlink()     
+            return posX,posY,posZ,posYaw,Flag
+            #print(f"test X = {posX:.0f} y = {posY:.0f} z = {posZ:.0f} yaw = {posYaw:.5f} falg = {Flag:.0f}")
 
-        return posX,posY,posZ,posYaw,Flag
-        #print(f"test X = {posX:.0f} y = {posY:.0f} z = {posZ:.0f} yaw = {posYaw:.5f} falg = {Flag:.0f}")
-
-    except FileNotFoundError:
-        print("Shared memory does not exist. Please ensure that it is created before running this script.")
-    except Exception as e:
-        print(f"Error while reading shared memory: {e}")
-    existing_shared_mem.close()
-    existing_shared_mem.unlink()
+        except FileNotFoundError:
+            print("Shared memory does not exist. Please ensure that it is created before running this script.")
+        except Exception as e:
+            print(f"Error while reading shared memory: {e}")
+        existing_shared_mem.close()
+        existing_shared_mem.unlink()
 
 def start_aruco_pose():
     # Start aruco_pose.py as a subprocess with unbuffered output
