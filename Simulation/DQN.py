@@ -200,6 +200,26 @@ def train(env, agent, num_episodes=1000):
             if done:
                 break
 
+def main():
+    print("Starting aruco_pose")
+    process = start_aruco_pose()
+    time.sleep(2)
+    
+    try:
+        read_shared_memory()
+    except KeyboardInterrupt:
+        print("Stopping aruco_pose")
+        time.sleep(1)
+        shared_memory
+        process.terminate()
+        process.wait()
+        print("aruco_pose terminated")
+    except Exception as e:
+        print(f'An error occurred: {e}')
+        process.terminate()
+        process.wait()
+        print("aruco_pose terminated due to error")
+
 
 if __name__ == "__main__":
     # Example usage:
